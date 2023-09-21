@@ -1,0 +1,18 @@
+# docker-compose.yml
+version: "3.9"
+services:
+  webapp:
+    image: hsienchao/oncogenomics
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "443:443"
+    volumes:
+      - ./oncogenomics:/var/www/html/clinomics
+      - /ccr-oncogenomics-ccdi-dev:/var/www/html/clinomics/site_data
+    hostname: oncogenomics-ccdi-dev.ccr.cancer.gov
+    domainname: ccr.cancer.gov
+    env_file:
+      - ./.env    
+  
