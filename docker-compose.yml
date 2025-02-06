@@ -7,12 +7,12 @@ services:
       context: .
       dockerfile: ./Dockerfile
     ports:
-      - "443:443"
+      - "80:80"
     volumes:
       - ./oncogenomics:/var/www/html/clinomics
-      - /ccr-oncogenomics-ccdi-dev:/var/www/html/clinomics/site_data
-    hostname: oncogenomics-ccdi-dev.ccr.cancer.gov
-    domainname: ccr.cancer.gov
+      - /mnt/nci_ccr_gb_oncogenomics_sg:/mnt/nci_ccr_gb_oncogenomics_sg
+    hostname: oncogenomics-dev.cancer.gov
+    domainname: cancer.gov
     env_file:
       - ./.env    
   

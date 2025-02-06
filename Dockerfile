@@ -1,15 +1,14 @@
 # syntax=docker/dockerfile:1
-FROM php:7.4-apache
-COPY ./sslip.crt /etc/apache2/ssl/ssl.crt
-COPY ./sslip.key /etc/apache2/ssl/ssl.key
-RUN mkdir -p /var/run/apache2/
-COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
-#RUN echo "ServerName oncoccdi" | tee /etc/apache2/sites-available/000-default.conf
-RUN a2enmod rewrite
-RUN a2enmod ssl
+FROM php:8.3.9-apache
+#RUN mkdir -p /var/run/apache2/
+#COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
+#RUN echo "ServerName oncogenomics-dev" | tee /etc/apache2/sites-available/000-default.conf
+#RUN a2enmod rewrite
+#RUN a2enmod ssl
+#RUN a2enmod headers
 #RUN a2enconf 000-default
 RUN apt update -qq
-RUN apt install --no-install-recommends software-properties-common dirmngr gnupg2 gfortran libblas-dev liblapack-dev libssl-dev libcurl4-openssl-dev libxml2-dev wget git -y
+RUN apt install --no-install-recommends software-properties-common dirmngr gnupg2 gfortran libblas-dev liblapack-dev libssl-dev libcurl4-openssl-dev libxml2-dev wget git rsync vim libdbd-mysql-perl -y
 RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -P /tmp
 RUN bash /tmp/Miniconda3-latest-Linux-x86_64.sh -p /var/www/html/miniconda3 -b
 WORKDIR /opt
@@ -40,14 +39,37 @@ RUN curl -O ${ORA_URL_PART}/${ORA_CLIENT} \
     && rm /opt/${ORA_CLIENT} && rm ${ORA_CLIENT_SDK}
 ENV LD_LIBRARY_PATH=${ORA_CLIENT_DIR}
 RUN ldconfig
-RUN perl -MCPAN -e 'install Bundle::DBI;install Bundle::LWP;install Try::Tiny;install MIME::Lite;install +YAML;install Test::NoWarnings;install DBD::Oracle'
+RUN perl -MCPAN -e 'install Bundle::DBI;install Bundle::LWP;install Try::Tiny;install MIME::Lite;install +YAML;install Test::NoWarnings;install DBD::Oracle;install DBD::mysql'
 #COPY oncogenomics /var/www/html/clinomics
-RUN apt-get update -qq && apt-get install -y libmcrypt-dev \
-    && pecl install mcrypt-1.0.4 \
-    && echo "instantclient,${ORA_CLIENT_DIR}" | pecl install oci8-2.2.0 \
-    && docker-php-ext-enable mcrypt
-RUN echo "extension=oci8.so" > /usr/local/etc/php/conf.d/php-oci8.ini
+RUN apt-get update -qq && apt-get install -y libmcrypt-dev
+RUN apt install -y git less wget unzip libaio1 && rm -rf /var/lib/apt/lists/*
+RUN cd /tmp/ && wget https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-basic-linux.x64-21.6.0.0.0dbru.zip && \
+    wget https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-sdk-linux.x64-21.6.0.0.0dbru.zip && \
+    unzip '*.zip' && \
+    rm *.zip
+#RUN docker-php-ext-configure oci8 --with-oci8=instantclient,/tmp/instantclient_21_6/
+#RUN docker-php-ext-install oci8 && \
+#    echo /tmp/instantclient_21_6 > /etc/ld.so.conf.d/oracle.conf && \
+#    ldconfig
+RUN docker-php-ext-install -j$(nproc) pdo
+RUN docker-php-ext-install -j$(nproc) pdo_mysql
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+RUN php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+#RUN echo "extension=oci8.so" > /usr/local/etc/php/conf.d/php-oci8.ini
 RUN echo "<?php echo phpinfo(); ?>" > /var/www/html/phpinfo.php
 RUN chown -R www-data:www-data /var/www
+RUN apt-get clean && apt-get update && apt-get install -y locales
+RUN locale-gen en_US.UTF-8
+COPY ./nonprod_aws_star_cancer_gov_to_May2025/star_cancer_gov.crt /etc/apache2/ssl/ssl.crt
+COPY ./nonprod_aws_star_cancer_gov_to_May2025/star_cancer_gov.key /etc/apache2/ssl/ssl.key
+COPY ./000-default.conf /etc/apache2/sites-available/000-default.conf
+#COPY ./sslip.crt /etc/apache2/ssl/ssl.crt
+#COPY ./sslip.key /etc/apache2/ssl/ssl.key
+##RUN echo "ServerName oncogenomics-dev" | tee /etc/apache2/sites-available/000-default.conf
+RUN a2enmod rewrite
+#RUN a2enmod ssl
+RUN a2enmod headers
+#RUN a2enconf 000-default.conf
+
 WORKDIR /var/www/html
 CMD ["apache2-foreground"]
