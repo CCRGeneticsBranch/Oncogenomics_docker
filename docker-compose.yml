@@ -2,17 +2,17 @@
 version: "3.9"
 services:
   webapp:
-    image: hsienchao/oncogenomics
+    image: hsienchao/oncogenomics:latest
     build:
       context: .
+      args:
+        INCUBATOR_VER: ${now}
       dockerfile: ./Dockerfile
     ports:
       - "80:80"
     volumes:
-      - ./oncogenomics:/var/www/html/clinomics
-      - /mnt/nci_ccr_gb_oncogenomics_sg:/mnt/nci_ccr_gb_oncogenomics_sg
-    hostname: oncogenomics-dev.cancer.gov
-    domainname: cancer.gov
+      #- ./clinomics:/var/www/html/clinomics
+      - /mnt/nci_ccr_gb_oncogenomics_sg:/var/www/html/clinomics/site_data
     env_file:
       - ./.env    
   

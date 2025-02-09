@@ -1,14 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM php:8.3.9-apache
-#RUN mkdir -p /var/run/apache2/
-#COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
-#RUN echo "ServerName oncogenomics-dev" | tee /etc/apache2/sites-available/000-default.conf
-#RUN a2enmod rewrite
-#RUN a2enmod ssl
-#RUN a2enmod headers
-#RUN a2enconf 000-default
-RUN apt update -qq
-RUN apt install --no-install-recommends software-properties-common dirmngr gnupg2 gfortran libblas-dev liblapack-dev libssl-dev libcurl4-openssl-dev libxml2-dev wget git rsync vim libdbd-mysql-perl -y
+RUN apt update -qq && apt install --no-install-recommends software-properties-common dirmngr gnupg2 gfortran libblas-dev liblapack-dev libssl-dev libcurl4-openssl-dev libxml2-dev wget git rsync vim libdbd-mysql-perl libgd3 locales libfreetype-dev libjpeg62-turbo-dev libpng-dev -y && docker-php-ext-configure gd --with-freetype --with-jpeg && docker-php-ext-install -j$(nproc) gd
+
 RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -P /tmp
 RUN bash /tmp/Miniconda3-latest-Linux-x86_64.sh -p /var/www/html/miniconda3 -b
 WORKDIR /opt
@@ -26,7 +19,7 @@ RUN set -x \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 RUN R -e "install.packages('https://cran.r-project.org/src/contrib/Archive/locfit/locfit_1.5-9.1.tar.gz', repos=NULL, type='source')"
-RUN R -e "install.packages('dplyr');install.packages('tibble');install.packages('BiocManager');install.packages('KernSmooth');BiocManager::install('sva');BiocManager::install('edgeR');BiocManager::install('DESeq2');"
+RUN R -e "install.packages('dplyr');install.packages('tibble');install.packages('BiocManager');install.packages('KernSmooth');BiocManager::install('sva');BiocManager::install('edgeR');BiocManager::install('DESeq2');BiocManager::install('GSVA');"
 ENV ORA_CLIENT=instantclient-basic-linux.x64-21.1.0.0.0.zip
 ENV ORA_CLIENT_SDK=instantclient-sdk-linux.x64-21.1.0.0.0.zip
 ENV ORA_URL_PART=https://download.oracle.com/otn_software/linux/instantclient/211000
@@ -47,29 +40,28 @@ RUN cd /tmp/ && wget https://download.oracle.com/otn_software/linux/instantclien
     wget https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-sdk-linux.x64-21.6.0.0.0dbru.zip && \
     unzip '*.zip' && \
     rm *.zip
-#RUN docker-php-ext-configure oci8 --with-oci8=instantclient,/tmp/instantclient_21_6/
-#RUN docker-php-ext-install oci8 && \
-#    echo /tmp/instantclient_21_6 > /etc/ld.so.conf.d/oracle.conf && \
-#    ldconfig
+RUN docker-php-ext-configure oci8 --with-oci8=instantclient,/tmp/instantclient_21_6/
+RUN docker-php-ext-install oci8 && \
+    echo /tmp/instantclient_21_6 > /etc/ld.so.conf.d/oracle.conf && \
+    ldconfig
 RUN docker-php-ext-install -j$(nproc) pdo
 RUN docker-php-ext-install -j$(nproc) pdo_mysql
 RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
 RUN php composer-setup.php --install-dir=/usr/local/bin --filename=composer
-#RUN echo "extension=oci8.so" > /usr/local/etc/php/conf.d/php-oci8.ini
+RUN echo "extension=oci8.so" > /usr/local/etc/php/conf.d/php-oci8.ini
 RUN echo "<?php echo phpinfo(); ?>" > /var/www/html/phpinfo.php
-RUN chown -R www-data:www-data /var/www
-RUN apt-get clean && apt-get update && apt-get install -y locales
 RUN locale-gen en_US.UTF-8
-COPY ./nonprod_aws_star_cancer_gov_to_May2025/star_cancer_gov.crt /etc/apache2/ssl/ssl.crt
-COPY ./nonprod_aws_star_cancer_gov_to_May2025/star_cancer_gov.key /etc/apache2/ssl/ssl.key
 COPY ./000-default.conf /etc/apache2/sites-available/000-default.conf
-#COPY ./sslip.crt /etc/apache2/ssl/ssl.crt
-#COPY ./sslip.key /etc/apache2/ssl/ssl.key
-##RUN echo "ServerName oncogenomics-dev" | tee /etc/apache2/sites-available/000-default.conf
 RUN a2enmod rewrite
 #RUN a2enmod ssl
 RUN a2enmod headers
 #RUN a2enconf 000-default.conf
-
+#RUN mkdir -p /var/www/html/clinomics
+ARG INCUBATOR_VER=unknown
+RUN git clone https://github.com/CCRGeneticsBranch/Oncogenomics_v2.git /var/www/html/clinomics
+RUN git clone https://github.com/CCRGeneticsBranch/Oncogenomics_scripts.git /var/www/html/clinomics/app/scripts
+RUN cd /var/www/html/clinomics && bash setup.sh
+RUN chown -R www-data:www-data /var/www
+#VOLUME /var/www/html/clinomics
 WORKDIR /var/www/html
 CMD ["apache2-foreground"]
