@@ -3,23 +3,37 @@ FROM php:8.3.9-apache
 RUN apt update -qq && apt install --no-install-recommends software-properties-common dirmngr gnupg2 gfortran libblas-dev liblapack-dev libssl-dev libcurl4-openssl-dev libxml2-dev wget git rsync vim libdbd-mysql-perl libgd3 locales libfreetype-dev libjpeg62-turbo-dev libpng-dev -y && docker-php-ext-configure gd --with-freetype --with-jpeg && docker-php-ext-install -j$(nproc) gd
 
 RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -P /tmp
-RUN bash /tmp/Miniconda3-latest-Linux-x86_64.sh -p /var/www/html/miniconda3 -b
+RUN bash /tmp/Miniconda3-latest-Linux-x86_64.sh -p /usr/bin/miniconda3 -b
 WORKDIR /opt
 RUN git clone https://github.com/rghu/reconCNV.git
 WORKDIR /opt/reconCNV
 SHELL ["/bin/bash", "-c"] 
-ENV PATH="${PATH}:/var/www/html/miniconda3/bin"
+ENV PATH="${PATH}:/usr/bin/miniconda3/bin"
 RUN conda env create -f environment.yml
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
-RUN add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/"
-RUN apt install --no-install-recommends r-base -y
+#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+#RUN add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/"
+#RUN apt-get update -qq && apt install --no-install-recommends r-base -y
 RUN set -x \
         && apt-get update -qq \
-        && apt-get install libaio-dev mc unzip zlib1g-dev libmemcached-dev --no-install-recommends --no-install-suggests -y \
+        && apt-get install libmagick++-dev libaio-dev mc unzip zlib1g-dev libmemcached-dev --no-install-recommends --no-install-suggests -y \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
+ENV R_VERSION=4.4.3
+WORKDIR /opt
+RUN wget https://github.com/unicode-org/icu/releases/download/release-73-1/icu4c-73_1-src.tgz
+RUN tar xvzf icu4c-73_1-src.tgz
+WORKDIR /opt/icu/source
+RUN ./configure && make && make install
+WORKDIR /opt
+RUN rm -rf icu
+RUN curl -O https://cran.rstudio.com/src/base/R-4/R-${R_VERSION}.tar.gz
+RUN tar xvzf R-${R_VERSION}.tar.gz
+WORKDIR /opt/R-${R_VERSION}
+RUN ./configure --without-x  --with-readline=no && make && make install && rm -rf R-${R_VERSION}
 RUN R -e "install.packages('https://cran.r-project.org/src/contrib/Archive/locfit/locfit_1.5-9.1.tar.gz', repos=NULL, type='source')"
-RUN R -e "install.packages('dplyr');install.packages('tibble');install.packages('BiocManager');install.packages('KernSmooth');BiocManager::install('sva');BiocManager::install('edgeR');BiocManager::install('DESeq2');BiocManager::install('GSVA');"
+RUN R -e "install.packages('dplyr', repos = 'http://cran.us.r-project.org');install.packages('tibble', repos='http://cran.us.r-project.org');install.packages('data.table',repos='http://cran.us.r-project.org');install.packages('BiocManager',repos='http://cran.us.r-project.org');install.packages('KernSmooth',repos='http://cran.us.r-project.org');"
+RUN R -e "BiocManager::install(version='3.20');"
+RUN R -e "BiocManager::install('magick');BiocManager::install('SpatialExperiment');BiocManager::install('sva');BiocManager::install('edgeR');BiocManager::install('DESeq2');BiocManager::install('GSVA');BiocManager::install('kmcut')"
 ENV ORA_CLIENT=instantclient-basic-linux.x64-21.1.0.0.0.zip
 ENV ORA_CLIENT_SDK=instantclient-sdk-linux.x64-21.1.0.0.0.zip
 ENV ORA_URL_PART=https://download.oracle.com/otn_software/linux/instantclient/211000
@@ -35,7 +49,7 @@ RUN ldconfig
 RUN perl -MCPAN -e 'install Bundle::DBI;install Bundle::LWP;install Try::Tiny;install MIME::Lite;install +YAML;install Test::NoWarnings;install DBD::Oracle;install DBD::mysql'
 #COPY oncogenomics /var/www/html/clinomics
 RUN apt-get update -qq && apt-get install -y libmcrypt-dev
-RUN apt install -y git less wget unzip libaio1 && rm -rf /var/lib/apt/lists/*
+RUN apt install -y bedtools git less wget unzip libaio1 && rm -rf /var/lib/apt/lists/*
 RUN cd /tmp/ && wget https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-basic-linux.x64-21.6.0.0.0dbru.zip && \
     wget https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-sdk-linux.x64-21.6.0.0.0dbru.zip && \
     unzip '*.zip' && \
@@ -57,11 +71,16 @@ RUN a2enmod rewrite
 RUN a2enmod headers
 #RUN a2enconf 000-default.conf
 #RUN mkdir -p /var/www/html/clinomics
+RUN apt-get update -qq && apt-get install -y cron
 ARG INCUBATOR_VER=unknown
 RUN git clone https://github.com/CCRGeneticsBranch/Oncogenomics_v2.git /var/www/html/clinomics
+ARG INCUBATOR_VER=unknown
+WORKDIR /var/www
+WORKDIR /var/www/html
 RUN git clone https://github.com/CCRGeneticsBranch/Oncogenomics_scripts.git /var/www/html/clinomics/app/scripts
 RUN cd /var/www/html/clinomics && bash setup.sh
 RUN chown -R www-data:www-data /var/www
 #VOLUME /var/www/html/clinomics
 WORKDIR /var/www/html
+RUN conda init
 CMD ["apache2-foreground"]

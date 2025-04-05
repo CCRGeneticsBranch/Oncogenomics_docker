@@ -14,5 +14,5 @@ services:
       #- ./clinomics:/var/www/html/clinomics
       - /mnt/nci_ccr_gb_oncogenomics_sg:/var/www/html/clinomics/site_data
     env_file:
-      - ./.env    
+      - ./.env
   
